@@ -39,9 +39,10 @@ declare(strict_types=1);
 
 namespace Pnhs\FormValidator\validators;
 
+use DateTime;
 use Pnhs\FormValidator\ValidatorInterface;
 
-class ValidatorNoEmpty implements ValidatorInterface
+class validatorTimestamp implements validatorInterface
 {
     private $value;
     private $option;
@@ -55,7 +56,8 @@ class ValidatorNoEmpty implements ValidatorInterface
 
     public function setOption(string $option): void
     {
-        $this->option = $option;
+        if ($option)
+            $this->option = $option;
     }
 
     public function setCode(string $code): void
@@ -63,21 +65,24 @@ class ValidatorNoEmpty implements ValidatorInterface
         $this->code = $code;
     }
 
-    public function execute(): mixed
+    public function execute()
     {
-        if ($this->value !== null && ($this->value === '' || (is_array($this->value) && count($this->value) === 0)) && !is_bool($this->value)) {
-            $this->error = "is empty";
-            return "_false";
-        }
-        return $this->value;
+        if (is_null($this->value))
+            return $this->value;
+
+        $date = DateTime::createFromFormat("Y-m-d\TH:i:sP", $this->value);
+        if ($date && $date->format("c") === $this->value)
+            return $date->format("c");
+        $this->error = "is not datetime valid (AAAA-MM-DDThh:mm:ssTZD)";
+        return "_false";
     }
 
-    public function error(): string|null
+    public function error()
     {
         return $this->error;
     }
 
-    public function code(): string|null
+    public function code()
     {
         return $this->code;
     }

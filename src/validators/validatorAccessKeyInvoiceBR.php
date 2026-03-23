@@ -41,7 +41,7 @@ namespace Pnhs\FormValidator\validators;
 
 use Pnhs\FormValidator\ValidatorInterface;
 
-class ValidatorNoEmpty implements ValidatorInterface
+class validatorAccessKeyInvoiceBR implements ValidatorInterface
 {
     private $value;
     private $option;
@@ -63,22 +63,64 @@ class ValidatorNoEmpty implements ValidatorInterface
         $this->code = $code;
     }
 
-    public function execute(): mixed
+    public function execute()
     {
-        if ($this->value !== null && ($this->value === '' || (is_array($this->value) && count($this->value) === 0)) && !is_bool($this->value)) {
-            $this->error = "is empty";
+        if ($this->value === null || $this->value === '') {
+            return $this->value;
+        }
+
+        $valueString = (string) $this->value;
+        $chave = preg_replace('/\D/', '', $valueString);
+
+        if (strlen($chave) !== 44) {
+            $this->error = "A Chave de Acesso deve conter exatamente 44 dígitos numéricos.";
             return "_false";
         }
+
+        if (preg_match("/^{$chave[0]}{44}$/", $chave)) {
+            $this->error = "A Chave de Acesso informada é inválida.";
+            return "_false";
+        }
+
+        if (!$this->validateDv($chave)) {
+            $this->error = "O Dígito Verificador da Chave de Acesso é inválido.";
+            return "_false";
+        }
+
         return $this->value;
     }
 
-    public function error(): string|null
+    public function error()
     {
         return $this->error;
     }
 
-    public function code(): string|null
+    public function code()
     {
         return $this->code;
+    }
+
+    private function validateDv(string $chave): bool
+    {
+        $dvInformado = (int) $chave[43];
+        $corpo = substr($chave, 0, 43);
+        $peso = 2;
+        $soma = 0;
+
+        for ($i = 42; $i >= 0; $i--) {
+            $digito = (int) $corpo[$i];
+            $soma += $digito * $peso;
+
+            $peso++;
+            if ($peso > 9) {
+                $peso = 2;
+            }
+        }
+
+        $resto = $soma % 11;
+
+        $dvCalculado = ($resto == 0 || $resto == 1) ? 0 : (11 - $resto);
+
+        return $dvInformado === $dvCalculado;
     }
 }

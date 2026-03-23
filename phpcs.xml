@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<ruleset name="PNHS">
+    <description>Padrão de codificação PSR-12 para PNHS</description>
+
+    <arg name="colors"/>
+    <arg value="sp"/>
+
+    <!-- Caminho dos arquivos a serem analisados -->
+    <file>lang</file>
+    <file>examples</file>
+    <file>src</file>
+    <file>tests</file>
+
+    <!-- Use o padrão PSR-12 -->
+    <rule ref="PSR12"/>
+
+    <!-- Configurações específicas -->
+    <rule ref="Generic.Files.LineLength">
+        <properties>
+            <property name="lineLimit" value="120"/>
+            <property name="absoluteLineLimit" value="120"/>
+        </properties>
+    </rule>
+
+    <!-- Excluir arquivos/diretórios que não precisam ser verificados -->
+    <exclude-pattern>*/vendor/*</exclude-pattern>
+</ruleset>
