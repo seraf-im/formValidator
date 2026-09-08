@@ -75,7 +75,7 @@ class validatorDecimal implements validatorInterface
 
         if (!is_numeric($this->value)) {
             $this->error = "is not a valid number";
-            return false;
+            return "_false";
         }
 
         $valStr = (string) $this->value;
@@ -101,13 +101,13 @@ class validatorDecimal implements validatorInterface
 
             if (strlen($cleanInt) > $maxIntegerDigits) {
                 $this->error = "cannot have more than {$maxIntegerDigits} digits before the decimal point";
-                return false;
+                return "_false";
             }
         }
 
         if (strlen($decimalPart) > $maxDecimals) {
             $this->error = "cannot have more than {$maxDecimals} decimal places";
-            return false;
+            return "_false";
         }
 
         return number_format((float) $this->value, $maxDecimals, '.', '');
