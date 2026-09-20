@@ -66,11 +66,14 @@ class validatorMax implements validatorInterface
 
     public function execute()
     {
-        $options = explode(",", $this->option);
-
         if ((float)$this->value > (float)$this->option) {
             $this->error = "number cannot be greater than {$this->option}";
-            return false;
+            // Reprovação usa a sentinela "_false" (string), NÃO o booleano
+            // `false`: Validator::validators() só registra erro com
+            // `=== "_false"`. Devolvendo `false` a regra virava falha ABERTA
+            // — o valor acima do limite passava e o Model castava pra 0.
+            // Mesmo contrato dos irmãos min_len/max_len/decimal/enum.
+            return "_false";
         }
 
         return (float) $this->value;

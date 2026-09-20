@@ -78,9 +78,53 @@ class Validator
 
             $result = $model->execute();
 
+            // -----------------------------------------------------------------
+            // CONTRATO DE REPROVAÇÃO: um validador reprova devolvendo a STRING
+            // sentinela "_false". Só ela dispara setError() aqui.
+            //
+            // Por que uma sentinela em string, e não um simples teste falsy:
+            // validadores devolvem o VALOR SANEADO no caminho de sucesso, e
+            // vários desses valores são legitimamente falsy — validatorBoolean
+            // devolve int 0, validatorMax devolve float 0.0, validatorNumeric e
+            // validatorMin_len devolvem null, validatorString devolve ''. Um
+            // `if (!$result)` reprovaria todos esses acertos. A sentinela
+            // "_false" não colide com nenhum valor de payload real, por isso é
+            // ela que marca falha.
+            //
+            // FAMÍLIA DE BUG (falha ABERTA silenciosa): validadores legados
+            // reprovam devolvendo o BOOLEANO `false`. Como `false !== "_false"`,
+            // o erro NUNCA era registrado — a regra não bloqueava nada e o valor
+            // inválido seguia adiante como `false`, que o Model castava pra 0/''
+            // sem alarme. Já normalizados: min_len, decimal, max.
+            //
+            // ⚠️ NÃO transformar este `===` em teste falsy/`|| $result === false`
+            // sem antes auditar validador a validador. Medido em PHP 8.2 sobre o
+            // código atual: validatorTimezone devolve `false` até para o fuso
+            // VÁLIDO 'America/Sao_Paulo' (usa timezone_abbreviations_list(), que
+            // não cobre esse id) e validatorInteger devolve `false` para a string
+            // '5' (is_int() é falso para numérico vindo de JSON). Ligar o
+            // comparador sem corrigir esses casos passa a rejeitar requisição
+            // legítima em produção. A migração correta é normalizar cada
+            // validador para "_false", um de cada vez, com o impacto medido.
+            // -----------------------------------------------------------------
             if ($result === "_false") {
                 $this->setError($name, $name . ' ' . $model->error(), $model->code(), $validator);
                 return null;
+            }
+
+            // Telemetria da migração — NÃO altera o resultado da validação.
+            // Marca no log os validadores que reprovaram com bool `false` e que,
+            // por isso, NÃO bloquearam. Permite medir com tráfego real quais
+            // regras de fato disparam antes de normalizá-las (blast radius).
+            // Só o nome do campo e o da regra vão pro log — nenhum valor de
+            // payload, para não vazar dado de cliente.
+            if ($result === false) {
+                \error_log(\sprintf(
+                    '[form_validator] regra "%s" reprovou o campo "%s" mas devolveu bool false; '
+                    . 'o contrato exige "_false" — falha ABERTA, o valor seguiu sem bloqueio',
+                    $validator,
+                    $name
+                ));
             }
         }
         return $result;
