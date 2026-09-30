@@ -69,15 +69,19 @@ class validatorAccessKeyInvoiceBR implements ValidatorInterface
             return $this->value;
         }
 
-        $valueString = (string) $this->value;
-        $chave = preg_replace('/\D/', '', $valueString);
+        $chave = self::normalize((string) $this->value);
 
         if (strlen($chave) !== 44) {
             $this->error = "A Chave de Acesso deve conter exatamente 44 dígitos numéricos.";
             return "_false";
         }
 
-        if (preg_match("/^{$chave[0]}{44}$/", $chave)) {
+        // NT Conjunta 2025.001 (CNPJ alfanumérico): letras só nas 12 primeiras
+        // posições do CNPJ do emitente (posições 7–18 da chave); os 2 DVs do
+        // CNPJ e todo o resto continuam numéricos.
+        if (!preg_match('/^[0-9]{6}[A-Z0-9]{12}[0-9]{26}$/', $chave)
+            || preg_match("/^{$chave[0]}{44}$/", $chave)
+        ) {
             $this->error = "A Chave de Acesso informada é inválida.";
             return "_false";
         }
@@ -85,6 +89,12 @@ class validatorAccessKeyInvoiceBR implements ValidatorInterface
         if (!$this->validateDv($chave)) {
             $this->error = "O Dígito Verificador da Chave de Acesso é inválido.";
             return "_false";
+        }
+
+        // Chave com CNPJ alfanumérico: devolve em MAIÚSCULO (o formato oficial);
+        // chave puramente numérica → valor original intacto (legado).
+        if (is_string($this->value) && preg_match('/[A-Z]/', $chave)) {
+            return strtoupper($this->value);
         }
 
         return $this->value;
@@ -100,16 +110,32 @@ class validatorAccessKeyInvoiceBR implements ValidatorInterface
         return $this->code;
     }
 
-    private function validateDv(string $chave): bool
+    /**
+     * Remove máscara/espaços (qualquer caractere fora de [A-Za-z0-9]), passa
+     * para MAIÚSCULO e descarta um prefixo só de letras antes do 1º dígito —
+     * o "Id" do XML vem como "NFe3519...", "CTe...", "MDFe..." e o legado
+     * (que apagava toda não-dígito) aceitava essa forma.
+     */
+    public static function normalize(string $value): string
     {
-        $dvInformado = (int) $chave[43];
-        $corpo = substr($chave, 0, 43);
+        $chave = strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', $value));
+
+        return (string) preg_replace('/^[A-Z]+(?=[0-9])/', '', $chave);
+    }
+
+    /**
+     * cDV da chave: módulo 11 sobre as 43 primeiras posições, pesos 2..9 da
+     * direita para a esquerda; resto 0 ou 1 → DV 0. Com CNPJ alfanumérico
+     * (NT Conjunta 2025.001) cada caractere vale ASCII − 48 — para dígitos é
+     * exatamente o valor numérico, então chaves antigas não mudam.
+     */
+    public static function computeDv(string $corpo43): int
+    {
         $peso = 2;
         $soma = 0;
 
-        for ($i = 42; $i >= 0; $i--) {
-            $digito = (int) $corpo[$i];
-            $soma += $digito * $peso;
+        for ($i = strlen($corpo43) - 1; $i >= 0; $i--) {
+            $soma += (ord($corpo43[$i]) - 48) * $peso;
 
             $peso++;
             if ($peso > 9) {
@@ -119,8 +145,11 @@ class validatorAccessKeyInvoiceBR implements ValidatorInterface
 
         $resto = $soma % 11;
 
-        $dvCalculado = ($resto == 0 || $resto == 1) ? 0 : (11 - $resto);
+        return ($resto == 0 || $resto == 1) ? 0 : (11 - $resto);
+    }
 
-        return $dvInformado === $dvCalculado;
+    private function validateDv(string $chave): bool
+    {
+        return (int) $chave[43] === self::computeDv(substr($chave, 0, 43));
     }
 }
