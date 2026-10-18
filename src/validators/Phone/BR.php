@@ -41,6 +41,11 @@ namespace Pnhs\FormValidator\validators\Phone;
  */
 class BR
 {
+  /**
+   * Fixo BR: 10 dígitos (DDD + 8) e o 1º dígito do número local em 2-5 (Anatel);
+   * 6-9 no 1º dígito de 10 dígitos não é fixo válido.
+   * Retorna null quando nenhum formato casa (o validatorPhone converte em erro).
+   */
   public function run(string $number, int $length)
   {
     if ($length == 11 && $number[2] == 9) {
@@ -48,7 +53,7 @@ class BR
         'formatted' => '(' . substr($number, 0, 2) . ') ' . substr($number, 2, 1) . ' ' . substr($number, 3, 4) . ' - ' . substr($number, 7, 4),
         'type'      => 'cellphone'
       ];
-    } elseif ($length == 10 && ($number[2] == 2 | $number[2] == 3)) {
+    } elseif ($length == 10 && in_array($number[2], ['2', '3', '4', '5'], true)) {
       return [
         'formatted' => '(' . substr($number, 0, 2) . ') ' . substr($number, 2, 4) . ' - ' . substr($number, 6, 4),
         'type'      => 'landline'

@@ -73,14 +73,22 @@ class validatorPhone implements validatorInterface
 
         $length = strlen($this->value);
 
+        // País vazio/desconhecido (ex.: PATCH com `number` sem `country`) era
+        // `new Phone\` → Error 500; agora é erro de validação.
         $c = 'Pnhs\FormValidator\validators\Phone\\' . $options[0];
+        if ($options[0] === '' || !class_exists($c)) {
+            $this->error = "country is not supported";
+            return "_false";
+        }
 
         $class = new $c();
         $r = $class->run($this->value, $length);
 
         if (!$r) {
+            // Contrato do Validator: só a sentinela "_false" registra erro.
+            // `false` aqui fazia o PATCH gravar '' e APAGAR o telefone (spec 487).
             $this->error = "is not valid";
-            return false;
+            return "_false";
         }
 
         if (isset($options[1]) && $options[1] == "true")
