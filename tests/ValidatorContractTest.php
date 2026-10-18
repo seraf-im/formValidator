@@ -21,7 +21,7 @@ use Pnhs\FormValidator\Validator;
  * regra pode passar a bloquear por acidente.
  *
  * Já normalizados e fora desta lista: required, noEmpty, enum, exact, decimal,
- * min_len, max_len, document, gtin, accessKeyInvoiceBR, timestamp, max.
+ * min_len, max_len, document, gtin, accessKeyInvoiceBR, timestamp, max, phone.
  */
 class ValidatorContractTest extends TestCase
 {
@@ -52,7 +52,6 @@ class ValidatorContractTest extends TestCase
             '  97 call sites'       => ['array', 'x'],
             // date aceita null, mas reprova string vazia.
             'date com vazio'        => ['date:Y-m-d', ''],
-            '   3 call sites'       => ['phone:BR', '1'],
         ];
     }
 
