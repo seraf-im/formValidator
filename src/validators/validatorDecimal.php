@@ -78,22 +78,22 @@ class validatorDecimal implements validatorInterface
             return "_false";
         }
 
-        $valStr = (string) $this->value;
-
         $options = explode(',', (string) $this->option);
         $maxDecimals = (int) ($options[0] ?? 2);
         $maxIntegerDigits = isset($options[1]) ? (int) $options[1] : null;
 
-        if (strpos($valStr, '.') !== false) {
-            list($integerPart, $decimalPart) = explode('.', $valStr);
-        } else {
-            $integerPart = $valStr;
-            $decimalPart = "";
+        $valStr = $this->canonical($this->value, $maxDecimals);
+
+        // Spec 498 — notação exponencial ("1e15", "1.0E+15") passava no
+        // is_numeric e driblava o teto de inteiros. Só dígitos com ponto.
+        if (preg_match('/^([+-]?)(\d*)(?:\.(\d*))?$/', $valStr, $m) !== 1 || ($m[2] === '' && ($m[3] ?? '') === '')) {
+            $this->error = "is not a valid number";
+            return "_false";
         }
 
-        if (strpos($integerPart, '-') !== false) {
-            $integerPart = str_replace('-', '', $integerPart);
-        }
+        $negative = $m[1] === '-';
+        $integerPart = $m[2];
+        $decimalPart = $m[3] ?? '';
 
         if (!is_null($maxIntegerDigits)) {
             $cleanInt = ltrim($integerPart, '0');
@@ -110,7 +110,38 @@ class validatorDecimal implements validatorInterface
             return "_false";
         }
 
-        return number_format((float) $this->value, $maxDecimals, '.', '');
+        // Spec 498 — saída montada por string. O antigo
+        // number_format((float) ...) corrompia valores com mais de ~15
+        // dígitos significativos (vUnCom 11v10: 12345678901.1234567891 →
+        // ...4569550). Para entradas válidas o formato é o mesmo de antes.
+        $int = ltrim($integerPart, '0');
+        if ($int === '') $int = '0';
+        $dec = str_pad($decimalPart, $maxDecimals, '0');
+        $isZero = trim($int . $dec, '0') === '';
+
+        return ($negative && !$isZero ? '-' : '') . $int . ($maxDecimals > 0 ? '.' . $dec : '');
+    }
+
+    /**
+     * Texto do número sem perda: float vem do json_decode e o (string) com
+     * precision=14 arredonda (99999999999.9999 → "100000000000"). O
+     * json_encode usa a menor representação exata (serialize_precision=-1).
+     * Se essa forma tiver mais casas que o permitido (ruído de ponto
+     * flutuante, ex.: 0.1+0.2), cai na forma antiga, que era aceita.
+     */
+    private function canonical(mixed $value, int $maxDecimals): string
+    {
+        if (!is_float($value)) {
+            return trim((string) $value);
+        }
+
+        $exact = (string) json_encode($value);
+        $dot = strpos($exact, '.');
+        if (stripos($exact, 'e') === false && ($dot === false || strlen($exact) - $dot - 1 <= $maxDecimals)) {
+            return $exact;
+        }
+
+        return (string) $value;
     }
 
     public function error()

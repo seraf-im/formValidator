@@ -102,4 +102,72 @@ class validatorDecimalTest extends TestCase
         $error = $validator->errors();
         $this->assertSame('DUP001', $error[0]['code']);
     }
+
+    /** Spec 498 — notação exponencial driblava o teto de inteiros. */
+    public function testRejeitaNotacaoExponencial(): void
+    {
+        foreach (['1e15', '1.0E+15', '1E3', '-2e-1'] as $v) {
+            $validator = new Validator(['vNF' => $v]);
+            $this->assertNull($validator->rules('vNF', 'decimal:2,13'), $v);
+            $this->assertIsArray($validator->errors(), $v);
+        }
+    }
+
+    /** Spec 498 — vUnCom 11v10 não pode ser corrompido pelo float. */
+    public function testPrecisaoAlemDe15DigitosPreservada(): void
+    {
+        $validator = new Validator(['vUnCom' => '12345678901.1234567891', 'qCom' => '99999999999.9999']);
+
+        $this->assertSame('12345678901.1234567891', $validator->rules('vUnCom', 'decimal:10,11'));
+        $this->assertSame('99999999999.9999', $validator->rules('qCom', 'decimal:4,11'));
+        $this->assertNull($validator->errors());
+    }
+
+    /** Spec 498 — número JSON (float) na fronteira do leiaute não vira 12 inteiros. */
+    public function testFloatNaFronteiraNaoArredondaParaCima(): void
+    {
+        $validator = new Validator(['qCom' => 99999999999.9999]);
+
+        $this->assertSame('99999999999.9999', $validator->rules('qCom', 'decimal:4,11'));
+        $this->assertNull($validator->errors());
+    }
+
+    /** Ruído de ponto flutuante (0.1+0.2) continua aceito como antes. */
+    public function testFloatComRuidoContinuaAceito(): void
+    {
+        $validator = new Validator(['v' => 0.1 + 0.2]);
+
+        $this->assertSame('0.30', $validator->rules('v', 'decimal:2'));
+        $this->assertNull($validator->errors());
+    }
+
+    /** Formato de saída idêntico ao antigo para entradas válidas. */
+    public function testFormatoDeSaidaInalterado(): void
+    {
+        $casos = [
+            ['007.5', 'decimal:2', '7.50'],
+            ['-0.00', 'decimal:2', '0.00'],
+            ['-12.3', 'decimal:2', '-12.30'],
+            ['.5', 'decimal:2', '0.50'],
+            ['5.', 'decimal:2', '5.00'],
+            [' 5', 'decimal:2', '5.00'],
+            ['+5', 'decimal:2', '5.00'],
+            [12, 'decimal:4', '12.0000'],
+        ];
+        foreach ($casos as [$in, $rule, $out]) {
+            $validator = new Validator(['v' => $in]);
+            $this->assertSame($out, $validator->rules('v', $rule), var_export($in, true));
+            $this->assertNull($validator->errors(), var_export($in, true));
+        }
+    }
+
+    public function testTetoDeTrezeInteirosNoTotal(): void
+    {
+        $ok = new Validator(['vNF' => '9999999999999.99']);
+        $this->assertSame('9999999999999.99', $ok->rules('vNF', 'decimal:2,13'));
+
+        $nok = new Validator(['vNF' => '10000000000000.00']);
+        $this->assertNull($nok->rules('vNF', 'decimal:2,13'));
+        $this->assertIsArray($nok->errors());
+    }
 }
